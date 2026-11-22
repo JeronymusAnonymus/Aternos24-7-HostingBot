@@ -184,7 +184,6 @@ app.get('/', (req, res) => {
 });
 
 app.get('/tutorial', (req, res) => {
-
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -322,6 +321,30 @@ function addInterval(callback, delay) {
   return id;
 }
 
+function startClientTickEnd(botInstance) {
+  if (!String(botInstance.version || '').startsWith('26.3')) return;
+
+  const id = setInterval(() => {
+    if (
+      bot !== botInstance ||
+      !botInstance._client ||
+      botInstance._client.state !== 'play'
+    ) {
+      return;
+    }
+
+    try {
+      botInstance._client.write('client_tick_end', {});
+    } catch (err) {
+      clearInterval(id);
+      activeIntervals = activeIntervals.filter(intervalId => intervalId !== id);
+      console.log(`[Bot] Could not send client_tick_end: ${err.message}`);
+    }
+  }, 50);
+
+  activeIntervals.push(id);
+}
+
 function getReconnectDelay() {
   if (botState.wasThrottled) {
     botState.wasThrottled = false;
@@ -395,6 +418,7 @@ function createBot() {
       isReconnecting = false;
 
       console.log(`[Bot] Spawned on server (version: ${bot.version})`);
+      startClientTickEnd(bot);
 
       if (config.discord?.events?.connect) {
         sendDiscordWebhook(`Connected to \`${config.server.ip}\``, 0x4ade80);
@@ -442,7 +466,6 @@ function createBot() {
       if (config.discord?.events?.disconnect) {
         sendDiscordWebhook(`Kicked: ${kickReason}`, 0xff0000);
       }
-
     });
 
     bot.on('end', (reason) => {
@@ -461,7 +484,6 @@ function createBot() {
     bot.on('error', (err) => {
       console.log(`[Bot] Error: ${err.message}`);
       pushError({ type: 'error', message: err.message, time: Date.now() });
-
     });
 
   } catch (err) {
@@ -553,7 +575,6 @@ function initializeModules(bot, mcData, defaultMove, authPassword) {
   }
 
   if (config.utils['anti-afk']?.enabled) {
-
     addInterval(() => {
       if (!bot || !botState.connected) return;
       try { bot.swingArm(); } catch (e) { }
@@ -749,7 +770,6 @@ function combatModule(bot, mcData) {
     if (now - lastAttackTime < 620) return;
 
     try {
-
       if (lockedTarget && now < lockedTargetExpiry && bot.entities[lockedTarget.id] && lockedTarget.position) {
         if (bot.entity.position.distanceTo(lockedTarget.position) < 4) {
           bot.attack(lockedTarget);
@@ -783,7 +803,6 @@ function combatModule(bot, mcData) {
           return foodData && foodData.foodPoints > 0;
         });
         if (food) {
-
           bot.equip(food, 'hand')
             .then(() => {
               if (bot && botState.connected) return bot.consume();
@@ -816,7 +835,6 @@ function bedModule(bot, mcData) {
             await bot.sleep(bedBlock);
             console.log('[Bed] Sleeping...');
           } catch (e) {
-
           } finally {
             isTryingToSleep = false;
           }
@@ -830,7 +848,6 @@ function bedModule(bot, mcData) {
 }
 
 function chatModule(bot) {
-
   const tpWhitelist = config.chat?.tpWhitelist || [];
 
   bot.on('chat', (username, message) => {
@@ -892,7 +909,6 @@ function sendDiscordWebhook(content, color = 0x0099ff) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-
       'Content-Length': Buffer.byteLength(payload, 'utf8')
     }
   };
